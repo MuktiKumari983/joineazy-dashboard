@@ -7,15 +7,18 @@ import {
   ExternalLink,
   Loader2,
   ShieldCheck,
+  UserRound,
+  UsersRound,
 } from 'lucide-react'
-import type { Assignment } from '../types/dashboard'
-import { cn, formatDate } from '../utils/helpers'
-import { Modal } from './ui/Modal'
+import type { Assignment, Group } from '../../types/dashboard'
+import { cn, formatDeadline } from '../../utils/helpers'
+import { Modal } from '../ui/Modal'
 
 interface SubmissionModalProps {
   assignment: Assignment | null
+  group?: Group
   onClose: () => void
-  onConfirm: (assignmentId: string) => void
+  onConfirm: () => void
 }
 
 const primaryButtonClasses =
@@ -25,10 +28,15 @@ const secondaryButtonClasses =
   'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60'
 
 /**
- * Two-step submission confirmation. The component is mounted only while an
- * assignment is selected, so the flow always starts at step 1.
+ * Two-step acknowledgment. Individual students confirm their own submission;
+ * group leaders confirm on behalf of the whole group.
  */
-export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionModalProps) {
+export function SubmissionModal({
+  assignment,
+  group,
+  onClose,
+  onConfirm,
+}: SubmissionModalProps) {
   const [step, setStep] = useState<1 | 2>(1)
   const [submitting, setSubmitting] = useState(false)
   const timerRef = useRef<number | null>(null)
@@ -40,6 +48,8 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
   }, [])
 
   const open = assignment !== null
+  const isGroup = Boolean(group)
+  const Icon = isGroup ? UsersRound : UserRound
 
   const handleClose = () => {
     if (!submitting) onClose()
@@ -50,7 +60,7 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
 
     setSubmitting(true)
     timerRef.current = window.setTimeout(() => {
-      onConfirm(assignment.id)
+      onConfirm()
       setSubmitting(false)
       onClose()
     }, 550)
@@ -64,7 +74,9 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
         </button>
         <button type="button" className={primaryButtonClasses} onClick={() => setStep(2)}>
           <CloudUpload className="h-4 w-4" />
-          Yes, I have submitted my work to Google Drive
+          {isGroup
+            ? 'Yes, our group has submitted'
+            : 'Yes, I have submitted my work to OneDrive'}
         </button>
       </>
     ) : (
@@ -90,7 +102,7 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
           {submitting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Submitting...
+              Confirming...
             </>
           ) : (
             <>
@@ -108,7 +120,7 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
       onClose={handleClose}
       size="md"
       icon={<CloudUpload className="h-5 w-5" />}
-      title="Submit assignment"
+      title={isGroup ? 'Acknowledge group submission' : 'Acknowledge submission'}
       description="Two quick checks before your status is updated."
       footer={footer}
     >
@@ -152,13 +164,20 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
                     {assignment.title}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Due {formatDate(assignment.dueDate)}
+                    Deadline {formatDeadline(assignment.deadline)}
                   </p>
+                  {group && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200 ring-inset">
+                      <UsersRound className="h-3.5 w-3.5" />
+                      {group.name}
+                    </p>
+                  )}
                 </div>
 
                 <p className="text-sm leading-relaxed text-slate-600">
-                  Please confirm that you have uploaded your completed work to the class
-                  Google Drive folder. Your professor will be notified once you confirm.
+                  {isGroup
+                    ? 'Confirm that your group has uploaded the completed work to the OneDrive folder. This will acknowledge the submission for every member of the group.'
+                    : 'Please confirm that you have uploaded your completed work to the OneDrive folder. Your professor will see the acknowledgment immediately.'}
                 </p>
 
                 <a
@@ -171,7 +190,7 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                       <CloudUpload className="h-4 w-4" />
                     </span>
-                    <span className="truncate">Open the Drive submission folder</span>
+                    <span className="truncate">Open the OneDrive submission folder</span>
                   </span>
                   <ExternalLink className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-violet-500" />
                 </a>
@@ -189,23 +208,39 @@ export function SubmissionModal({ assignment, onClose, onConfirm }: SubmissionMo
                   <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                   <div>
                     <p className="text-sm font-semibold text-amber-900">
-                      Final Confirmation: Are you sure?
+                      Final confirmation: are you sure?
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-amber-800">
-                      This will mark the assignment as{' '}
-                      <span className="font-semibold">Submitted</span> and share your status
-                      with the professor immediately.
+                      {isGroup ? (
+                        <>
+                          This will mark{' '}
+                          <span className="font-semibold">{group?.name}</span> as{' '}
+                          <span className="font-semibold">Submitted</span> for all group
+                          members and notify your professor.
+                        </>
+                      ) : (
+                        <>
+                          This will mark the assignment as{' '}
+                          <span className="font-semibold">Submitted</span> and share your
+                          status with the professor immediately.
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-                    You are submitting
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {assignment.title}
-                  </p>
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+                      You are acknowledging
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
+                      {assignment.title}
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             )}
